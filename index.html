@@ -1009,6 +1009,19 @@
   .hist-row input[type=checkbox]{ margin-top:4px; width:18px; height:18px; flex:none; }
   .hist-row .hist-body{ flex:1; min-width:0; }
   .hist-empty{ font-size:13px; color:var(--ink-faint); text-align:center; padding:16px 0 6px; border-top:1px solid var(--paper-line); }
+
+  /* ---------- Dialog ganti nama sebelum unduh ---------- */
+  .rn-back{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:9999; padding:16px; }
+  .rn-back.show{ display:flex; }
+  .rn-box{ background:var(--white-card, #fff); border:1px solid var(--paper-line); border-radius:var(--radius); padding:20px; width:100%; max-width:420px; }
+  .rn-box h3{ margin:0 0 4px; font-size:17px; color:var(--ink); }
+  .rn-box p{ margin:0 0 12px; font-size:13px; color:var(--ink-soft); }
+  .rn-field{ display:flex; align-items:center; gap:6px; margin-bottom:14px; }
+  .rn-field input{ flex:1; min-width:0; padding:11px 12px; font-size:15px; border:1px solid var(--paper-line); border-radius:var(--radius); font-family:'IBM Plex Sans',sans-serif; background:#fff; }
+  .rn-ext{ font-family:'IBM Plex Mono',monospace; font-size:14px; color:var(--ink-faint); }
+  .rn-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  .rn-actions button{ font-family:'IBM Plex Sans',sans-serif; font-size:14px; font-weight:600; padding:11px 18px; border-radius:var(--radius); cursor:pointer; border:1px solid var(--ink); background:transparent; color:var(--ink); }
+  .rn-actions button.rn-ok{ background:var(--ink); color:#fff; }
 </style>
 </head>
 <body>
@@ -1149,6 +1162,18 @@
       </div>
       <button class="btn-secondary" id="convertImagesBtn" disabled title="Hanya menggabungkan berkas foto di antrean, mengabaikan Word/Excel/PDF">Foto Saja &rarr; PDF</button>
       <button class="btn-primary" id="convertBtn" disabled>Unduh PDF</button>
+    </div>
+  </div>
+
+  <div class="rn-back" id="rnBack">
+    <div class="rn-box" role="dialog" aria-modal="true">
+      <h3>Beri nama file</h3>
+      <p>PDF sudah jadi. Ubah namanya dulu, lalu tekan Unduh.</p>
+      <div class="rn-field"><input type="text" id="rnInput" autocomplete="off"><span class="rn-ext" id="rnExt">.pdf</span></div>
+      <div class="rn-actions">
+        <button type="button" id="rnCancel">Nanti saja</button>
+        <button type="button" class="rn-ok" id="rnOk">Unduh</button>
+      </div>
     </div>
   </div>
 
@@ -1914,8 +1939,32 @@
   }
   // result = { files:[File,...], downloadBlob, downloadName }
   function deliverResult(result){
-    triggerDownload(result.downloadBlob, result.downloadName);
-    saveHistory(result.files);
+    const rnBack = document.getElementById('rnBack');
+    const rnInput = document.getElementById('rnInput');
+    const ext = /\.zip$/i.test(result.downloadName) ? '.zip' : '.pdf';
+    document.getElementById('rnExt').textContent = ext;
+    rnInput.value = result.downloadName.replace(/\.(pdf|zip)$/i, '');
+    rnBack.classList.add('show');
+    setTimeout(()=>{ rnInput.focus(); rnInput.select(); }, 50);
+
+    const close = ()=>{ rnBack.classList.remove('show'); okBtn.onclick = cancelBtn.onclick = rnInput.onkeydown = null; };
+    const okBtn = document.getElementById('rnOk');
+    const cancelBtn = document.getElementById('rnCancel');
+
+    okBtn.onclick = ()=>{
+      const base = sanitizeFileName(rnInput.value.replace(/\.(pdf|zip)$/i, ''));
+      const finalName = base + ext;
+      let files = result.files;
+      if(ext === '.pdf' && files.length === 1){
+        files = [new File([files[0]], finalName, { type:'application/pdf' })];
+      }
+      close();
+      triggerDownload(result.downloadBlob, finalName);
+      saveHistory(files);
+    };
+    // "Nanti saja": tidak diunduh sekarang, tapi disimpan di dasbor supaya bisa diunduh/diganti nama nanti.
+    cancelBtn.onclick = ()=>{ close(); saveHistory(result.files); };
+    rnInput.onkeydown = (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); okBtn.onclick(); } };
   }
 
   // ---------- PDF tersimpan sementara (IndexedDB) ----------
