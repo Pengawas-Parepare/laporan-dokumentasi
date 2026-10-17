@@ -980,24 +980,6 @@
     color: var(--ink-faint);
   }
 
-  /* ---------- Panel kirim WhatsApp ---------- */
-  .share-bar{ display:none; margin-top:18px; padding:16px 18px; background:var(--white-card);
-    border:1px solid var(--paper-line); border-left:4px solid #25D366; border-radius:var(--radius); }
-  .share-bar.show{ display:block; }
-  .share-bar .share-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em;
-    text-transform:uppercase; color:var(--sage); font-weight:600; margin:0 0 4px; }
-  .share-bar .share-file{ font-size:13px; color:var(--ink-soft); margin:0 0 12px; word-break:break-all; }
-  .share-bar .share-actions{ display:flex; gap:10px; flex-wrap:wrap; }
-  .share-bar button, .share-bar a.share-link{ font-family:'IBM Plex Sans',sans-serif; font-size:14px; font-weight:600;
-    padding:12px 18px; border-radius:var(--radius); cursor:pointer; text-decoration:none; border:1px solid var(--ink); }
-  .share-bar .btn-wa{ background:#25D366; border-color:#1da851; color:#fff; }
-  .share-bar .btn-save{ background:transparent; color:var(--ink); }
-  .share-bar .share-num{ display:block; margin:0 0 12px; }
-  .share-bar .share-num label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; }
-  .share-bar .share-num input{ width:100%; max-width:280px; padding:11px 13px; font-size:14px;
-    border:1px solid var(--paper-line); border-radius:var(--radius); background:#fff; font-family:'IBM Plex Sans',sans-serif; }
-  .share-bar .share-hint{ font-size:12px; color:var(--ink-faint); margin:10px 0 0; line-height:1.5; }
-
   /* ---------- Riwayat PDF ---------- */
   .hist{ display:none; margin-top:18px; padding:16px 18px; background:var(--white-card);
     border:1px solid var(--paper-line); border-radius:var(--radius); }
@@ -1012,8 +994,21 @@
   .hist-actions{ display:flex; gap:8px; flex-wrap:wrap; }
   .hist button{ font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; padding:8px 12px;
     border-radius:var(--radius); cursor:pointer; border:1px solid var(--ink); background:transparent; color:var(--ink); }
-  .hist button.h-wa{ background:#25D366; border-color:#1da851; color:#fff; }
   .hist button.h-del{ border-color:#b3261e; color:#b3261e; }
+
+  /* ---------- Dashboard ---------- */
+  .hist{ display:block !important; }
+  .dash-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 12px; }
+  .dash-card{ background:var(--paper, #f6f3ec); border:1px solid var(--paper-line); border-radius:var(--radius); padding:10px 8px; text-align:center; }
+  .dash-num{ font-size:20px; font-weight:700; color:var(--ink); margin:0; line-height:1.1; }
+  .dash-lbl{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin:4px 0 0; }
+  .dash-tools{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px; align-items:center; }
+  .dash-tools input[type=search]{ flex:1; min-width:140px; padding:9px 11px; font-size:13px; border:1px solid var(--paper-line);
+    border-radius:var(--radius); background:#fff; font-family:'IBM Plex Sans',sans-serif; }
+  .hist-row{ display:flex; gap:10px; align-items:flex-start; }
+  .hist-row input[type=checkbox]{ margin-top:4px; width:18px; height:18px; flex:none; }
+  .hist-row .hist-body{ flex:1; min-width:0; }
+  .hist-empty{ font-size:13px; color:var(--ink-faint); text-align:center; padding:16px 0 6px; border-top:1px solid var(--paper-line); }
 </style>
 </head>
 <body>
@@ -1150,26 +1145,16 @@
     </div>
   </div>
 
-  <div class="share-bar" id="shareBar">
-    <p class="share-title">PDF siap dikirim</p>
-    <p class="share-file" id="shareFileName"></p>
-    <div class="share-num">
-      <label for="waNumber">Nomor WA tujuan (opsional, dipakai di laptop untuk membuka chat langsung)</label>
-      <input type="tel" id="waNumber" inputmode="tel" placeholder="08xxxxxxxxxx">
-    </div>
-    <div class="share-actions">
-      <button type="button" class="btn-wa" id="shareWaBtn">Kirim WA</button>
-      <button type="button" class="btn-save" id="shareSaveBtn">Unduh PDF lagi</button>
-    </div>
-    <p class="share-hint" id="shareHint"></p>
-  </div>
-
-  <div class="hist" id="histBox">
+  <div class="hist show" id="histBox">
     <div class="hist-head">
-      <p class="hist-title">PDF tersimpan sementara</p>
+      <p class="hist-title">Dasbor PDF</p>
       <button type="button" class="h-del" id="histClearAll">Hapus semua</button>
     </div>
-    <p class="hist-note">Tersimpan di browser perangkat ini (maks. 10 berkas, otomatis terhapus setelah 7 hari). Bisa dikirim ulang tanpa membuat PDF lagi.</p>
+    <div class="dash-stats" id="dashStats"></div>
+    <div class="dash-tools">
+      <input type="search" id="histSearch" placeholder="Cari nama PDF...">
+    </div>
+    <p class="hist-note">PDF tersimpan di browser perangkat ini (maks. 10 berkas, otomatis terhapus setelah 7 hari).</p>
     <div id="histList"></div>
   </div>
 
@@ -1905,18 +1890,7 @@
     }
   }
 
-  // ---------- Kirim ke WhatsApp / simpan ----------
-  let lastResult = null;
-  const shareBar = document.getElementById('shareBar');
-  const shareFileName = document.getElementById('shareFileName');
-  const shareWaBtn = document.getElementById('shareWaBtn');
-  const shareSaveBtn = document.getElementById('shareSaveBtn');
-  const shareHint = document.getElementById('shareHint');
-
-  function canShareFiles(fileList){
-    try{ return !!(navigator.share && navigator.canShare && navigator.canShare({ files: fileList })); }
-    catch(e){ return false; }
-  }
+  // ---------- Unduh PDF ----------
   function triggerDownload(blob, name){
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1925,66 +1899,10 @@
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
   }
   // result = { files:[File,...], downloadBlob, downloadName }
-  function isMobileDevice(){
-    if(navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
-    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  }
-  function normalizeWaNumber(v){
-    let d = (v || '').replace(/\D/g,'');
-    if(!d) return '';
-    if(d.startsWith('0')) d = '62' + d.slice(1);
-    else if(d.startsWith('8')) d = '62' + d;
-    return d;
-  }
-  function whyNoShare(){
-    if(!window.isSecureContext) return 'Halaman ini dibuka bukan lewat https:// (mungkin langsung dari file di HP), jadi menu kirim berkas diblokir HP. Pasang di GitHub Pages lalu buka lewat alamat https-nya.';
-    if(!navigator.share) return 'Browser ini tidak mendukung menu kirim berkas. Buka lewat Chrome (Android) atau Safari (iPhone), bukan dari dalam aplikasi lain.';
-    return 'Browser ini menolak mengirim berkas PDF lewat menu bagikan.';
-  }
-  function openWhatsAppApp(num){
-    if(isMobileDevice()){
-      // Buka aplikasi WhatsApp langsung (tanpa halaman web).
-      window.location.href = num ? 'whatsapp://send?phone=' + num : 'whatsapp://send';
-    } else {
-      window.open(num ? 'https://wa.me/' + num : 'https://web.whatsapp.com/', '_blank');
-    }
-  }
   function deliverResult(result){
-    lastResult = result;
-    const shareable = canShareFiles(result.files);
-    const mobile = isMobileDevice();
-    const n = result.files.length;
-    shareFileName.textContent = n === 1 ? result.files[0].name : `${n} berkas PDF`;
-    shareWaBtn.textContent = 'Kirim WA';
-    if(shareable){
-      if(!mobile) triggerDownload(result.downloadBlob, result.downloadName);
-      shareHint.textContent = mobile
-        ? 'Tekan Kirim WA, pilih WhatsApp lalu pilih kontak/grup. File PDF sudah terlampir, tinggal tekan kirim.'
-        : 'PDF sudah terunduh ke folder Downloads. Tekan Kirim WA untuk mengirim langsung lewat WhatsApp.';
-    } else {
-      triggerDownload(result.downloadBlob, result.downloadName);
-      shareHint.textContent = 'PDF sudah tersimpan di HP/laptop (folder Download). ' + whyNoShare() + ' Sementara itu: tekan Kirim WA, lalu di WhatsApp tekan ikon klip > Dokumen > pilih PDF tadi.';
-    }
-    shareBar.classList.add('show');
+    triggerDownload(result.downloadBlob, result.downloadName);
     saveHistory(result.files);
   }
-  shareWaBtn.addEventListener('click', async ()=>{
-    if(!lastResult) return;
-    if(canShareFiles(lastResult.files)){
-      try{
-        await navigator.share({ files: lastResult.files, title: lastResult.files[0].name.replace(/\.pdf$/i,'') });
-      }catch(err){
-        if(err && err.name === 'AbortError') return;
-        triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
-        shareHint.textContent = 'Menu kirim gagal (' + (err && err.name ? err.name : 'error') + '). PDF diunduh; lampirkan manual di WhatsApp lewat ikon klip > Dokumen.';
-      }
-      return;
-    }
-    const num = normalizeWaNumber(document.getElementById('waNumber').value);
-    triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
-    shareHint.textContent = 'Membuka WhatsApp... Tekan ikon klip > Dokumen > pilih PDF yang baru terunduh.';
-    setTimeout(()=> openWhatsAppApp(num), 600);
-  });
 
   // ---------- PDF tersimpan sementara (IndexedDB) ----------
   const HIST_MAX = 10, HIST_DAYS = 7;
@@ -2044,31 +1962,41 @@
   async function renderHistory(){
     try{
       const all = await histAll();
+      const q = (document.getElementById('histSearch').value || '').trim().toLowerCase();
+      const shown = all.filter(r => !q || r.name.toLowerCase().includes(q));
+
+      const total = all.reduce((t,r)=> t + r.size, 0);
+      const stats = document.getElementById('dashStats');
+      stats.innerHTML = '';
+      const card = (num, lbl)=>{ const c = document.createElement('div'); c.className='dash-card';
+        const n = document.createElement('p'); n.className='dash-num'; n.textContent = num;
+        const l = document.createElement('p'); l.className='dash-lbl'; l.textContent = lbl; c.append(n,l); stats.appendChild(c); };
+      card(String(all.length), 'Jumlah PDF');
+      card(all.length ? fmtSize(total) : '0 KB', 'Total ukuran');
+      card(all.length ? new Date(all[0].time).toLocaleDateString('id-ID',{day:'2-digit',month:'short'}) : '-', 'Terakhir dibuat');
+
       histList.innerHTML = '';
-      histBox.classList.toggle('show', all.length > 0);
-      all.forEach(rec=>{
+      if(!shown.length){
+        const e = document.createElement('p'); e.className='hist-empty';
+        e.textContent = all.length ? 'Tidak ada PDF yang cocok dengan pencarian.' : 'Belum ada PDF. Buat PDF dulu, hasilnya akan muncul di sini.';
+        histList.appendChild(e); return;
+      }
+      shown.forEach(rec=>{
         const item = document.createElement('div'); item.className = 'hist-item';
+        const row = document.createElement('div'); row.className = 'hist-row';
+        const body = document.createElement('div'); body.className = 'hist-body';
         const nm = document.createElement('p'); nm.className = 'hist-name'; nm.textContent = rec.name;
         const mt = document.createElement('p'); mt.className = 'hist-meta';
         mt.textContent = fmtSize(rec.size) + ' · ' + new Date(rec.time).toLocaleString('id-ID');
         const act = document.createElement('div'); act.className = 'hist-actions';
         const mk = (label, cls, fn)=>{ const b = document.createElement('button'); b.type='button'; b.textContent = label; if(cls) b.className = cls; b.addEventListener('click', fn); act.appendChild(b); };
-        mk('Kirim WA','h-wa', async ()=>{
-          const file = new File([rec.blob], rec.name, { type: rec.type });
-          if(canShareFiles([file])){
-            try{ await navigator.share({ files:[file], title: rec.name.replace(/\.pdf$/i,'') }); }
-            catch(err){ if(!(err && err.name === 'AbortError')){ triggerDownload(rec.blob, rec.name); } }
-          } else {
-            triggerDownload(rec.blob, rec.name);
-            setTimeout(()=> openWhatsAppApp(normalizeWaNumber(document.getElementById('waNumber').value)), 600);
-          }
-        });
         mk('Unduh','', ()=> triggerDownload(rec.blob, rec.name));
         mk('Hapus','h-del', async ()=>{ await histDelete([rec.id]); renderHistory(); });
-        item.append(nm, mt, act); histList.appendChild(item);
+        body.append(nm, mt, act); row.append(body); item.appendChild(row); histList.appendChild(item);
       });
-    }catch(e){ histBox.classList.remove('show'); }
+    }catch(e){ console.warn(e); }
   }
+  document.getElementById('histSearch').addEventListener('input', renderHistory);
   document.getElementById('histClearAll').addEventListener('click', async ()=>{
     if(!confirm('Hapus semua PDF yang tersimpan sementara?')) return;
     try{ const all = await histAll(); await histDelete(all.map(r=>r.id)); }catch(e){}
@@ -2076,9 +2004,6 @@
   });
   pruneHistory().then(renderHistory).catch(()=>{});
 
-  shareSaveBtn.addEventListener('click', ()=>{
-    if(lastResult) triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
-  });
 
   // Tombol pintasan: hanya menggabungkan berkas FOTO di antrean menjadi satu PDF,
   // mengabaikan berkas Word/Excel/PDF lain yang mungkin ada di antrean, serta
