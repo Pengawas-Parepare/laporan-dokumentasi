@@ -992,6 +992,10 @@
     padding:12px 18px; border-radius:var(--radius); cursor:pointer; text-decoration:none; border:1px solid var(--ink); }
   .share-bar .btn-wa{ background:#25D366; border-color:#1da851; color:#fff; }
   .share-bar .btn-save{ background:transparent; color:var(--ink); }
+  .share-bar .share-num{ display:block; margin:0 0 12px; }
+  .share-bar .share-num label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; }
+  .share-bar .share-num input{ width:100%; max-width:280px; padding:11px 13px; font-size:14px;
+    border:1px solid var(--paper-line); border-radius:var(--radius); background:#fff; font-family:'IBM Plex Sans',sans-serif; }
   .share-bar .share-hint{ font-size:12px; color:var(--ink-faint); margin:10px 0 0; line-height:1.5; }
 </style>
 </head>
@@ -1132,8 +1136,12 @@
   <div class="share-bar" id="shareBar">
     <p class="share-title">PDF siap dikirim</p>
     <p class="share-file" id="shareFileName"></p>
+    <div class="share-num">
+      <label for="waNumber">Nomor WA tujuan (opsional, contoh 0812xxxxxxxx)</label>
+      <input type="tel" id="waNumber" inputmode="tel" placeholder="08xxxxxxxxxx">
+    </div>
     <div class="share-actions">
-      <button type="button" class="btn-wa" id="shareWaBtn">Kirim ke WhatsApp</button>
+      <button type="button" class="btn-wa" id="shareWaBtn">Kirim WA</button>
       <button type="button" class="btn-save" id="shareSaveBtn">Unduh PDF lagi</button>
     </div>
     <p class="share-hint" id="shareHint"></p>
@@ -1895,31 +1903,40 @@
     if(navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   }
+  function normalizeWaNumber(v){
+    let d = (v || '').replace(/\D/g,'');
+    if(!d) return '';
+    if(d.startsWith('0')) d = '62' + d.slice(1);
+    else if(d.startsWith('8')) d = '62' + d;
+    return d;
+  }
   function deliverResult(result){
     lastResult = result;
     const shareable = canShareFiles(result.files);
     const mobile = isMobileDevice();
     const n = result.files.length;
     shareFileName.textContent = n === 1 ? result.files[0].name : `${n} berkas PDF`;
+    shareWaBtn.textContent = 'Kirim WA';
     if(mobile && shareable){
-      // HP: tidak diunduh otomatis, tunggu pengguna menekan tombol kirim.
-      shareWaBtn.textContent = 'Kirim ke WhatsApp';
-      shareHint.textContent = 'Tekan tombol hijau, lalu pilih WhatsApp dan kontak/grup tujuan.';
+      shareHint.textContent = 'Isi nomor tujuan lalu tekan Kirim WA untuk membuka chat orang tersebut, atau kosongkan nomor untuk memilih kontak sendiri dan PDF langsung terlampir.';
     } else {
-      // Laptop/PC: selalu langsung terunduh ke folder Downloads.
       triggerDownload(result.downloadBlob, result.downloadName);
-      if(shareable){
-        shareWaBtn.textContent = 'Kirim ke WhatsApp';
-        shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Anda juga bisa langsung mengirimnya lewat tombol hijau.';
-      } else {
-        shareWaBtn.textContent = 'Buka WhatsApp';
-        shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Buka WhatsApp, tekan ikon lampiran (klip), pilih Dokumen, lalu pilih PDF tersebut.';
-      }
+      shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Isi nomor tujuan lalu tekan Kirim WA untuk membuka chat orang tersebut, kemudian lampirkan PDF-nya.';
     }
     shareBar.classList.add('show');
   }
   shareWaBtn.addEventListener('click', async ()=>{
     if(!lastResult) return;
+    const num = normalizeWaNumber(document.getElementById('waNumber').value);
+    if(num){
+      // Buka chat langsung ke nomor tujuan. Browser tidak boleh melampirkan berkas otomatis ke nomor tertentu,
+      // jadi PDF disimpan dulu lalu pengguna menekan ikon klip > Dokumen.
+      triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
+      const text = encodeURIComponent('Berikut berkas PDF: ' + lastResult.files[0].name);
+      window.open('https://wa.me/' + num + '?text=' + text, '_blank');
+      shareHint.textContent = 'Chat ke ' + num + ' dibuka. Tekan ikon klip, pilih Dokumen, lalu pilih PDF yang baru terunduh.';
+      return;
+    }
     if(canShareFiles(lastResult.files)){
       try{
         await navigator.share({ files: lastResult.files, title: lastResult.files[0].name.replace(/\.pdf$/i,'') });
