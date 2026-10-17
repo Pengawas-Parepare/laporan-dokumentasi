@@ -997,6 +997,23 @@
   .share-bar .share-num input{ width:100%; max-width:280px; padding:11px 13px; font-size:14px;
     border:1px solid var(--paper-line); border-radius:var(--radius); background:#fff; font-family:'IBM Plex Sans',sans-serif; }
   .share-bar .share-hint{ font-size:12px; color:var(--ink-faint); margin:10px 0 0; line-height:1.5; }
+
+  /* ---------- Riwayat PDF ---------- */
+  .hist{ display:none; margin-top:18px; padding:16px 18px; background:var(--white-card);
+    border:1px solid var(--paper-line); border-radius:var(--radius); }
+  .hist.show{ display:block; }
+  .hist-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; }
+  .hist-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--sage); font-weight:600; margin:0; }
+  .hist-note{ font-size:12px; color:var(--ink-faint); margin:0 0 10px; line-height:1.5; }
+  .hist-item{ padding:10px 0; border-top:1px solid var(--paper-line); }
+  .hist-name{ font-size:13px; color:var(--ink); word-break:break-all; margin:0 0 2px; font-weight:600; }
+  .hist-meta{ font-size:11px; color:var(--ink-faint); margin:0 0 8px; }
+  .hist-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .hist button{ font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; padding:8px 12px;
+    border-radius:var(--radius); cursor:pointer; border:1px solid var(--ink); background:transparent; color:var(--ink); }
+  .hist button.h-wa{ background:#25D366; border-color:#1da851; color:#fff; }
+  .hist button.h-del{ border-color:#b3261e; color:#b3261e; }
 </style>
 </head>
 <body>
@@ -1145,6 +1162,15 @@
       <button type="button" class="btn-save" id="shareSaveBtn">Unduh PDF lagi</button>
     </div>
     <p class="share-hint" id="shareHint"></p>
+  </div>
+
+  <div class="hist" id="histBox">
+    <div class="hist-head">
+      <p class="hist-title">PDF tersimpan sementara</p>
+      <button type="button" class="h-del" id="histClearAll">Hapus semua</button>
+    </div>
+    <p class="hist-note">Tersimpan di browser perangkat ini (maks. 10 berkas, otomatis terhapus setelah 7 hari). Bisa dikirim ulang tanpa membuat PDF lagi.</p>
+    <div id="histList"></div>
   </div>
 
   <div class="review-panel" id="reviewPanel">
@@ -1940,6 +1966,7 @@
       shareHint.textContent = 'PDF sudah tersimpan di HP/laptop (folder Download). ' + whyNoShare() + ' Sementara itu: tekan Kirim WA, lalu di WhatsApp tekan ikon klip > Dokumen > pilih PDF tadi.';
     }
     shareBar.classList.add('show');
+    saveHistory(result.files);
   }
   shareWaBtn.addEventListener('click', async ()=>{
     if(!lastResult) return;
@@ -1958,6 +1985,97 @@
     shareHint.textContent = 'Membuka WhatsApp... Tekan ikon klip > Dokumen > pilih PDF yang baru terunduh.';
     setTimeout(()=> openWhatsAppApp(num), 600);
   });
+
+  // ---------- PDF tersimpan sementara (IndexedDB) ----------
+  const HIST_MAX = 10, HIST_DAYS = 7;
+  const histBox = document.getElementById('histBox');
+  const histList = document.getElementById('histList');
+  function histDB(){
+    return new Promise((resolve, reject)=>{
+      try{
+        const req = indexedDB.open('pdfHistoryDB', 1);
+        req.onupgradeneeded = ()=> req.result.createObjectStore('files', { keyPath:'id' });
+        req.onsuccess = ()=> resolve(req.result);
+        req.onerror = ()=> reject(req.error);
+      }catch(e){ reject(e); }
+    });
+  }
+  async function histAll(){
+    const db = await histDB();
+    return new Promise((resolve, reject)=>{
+      const r = db.transaction('files').objectStore('files').getAll();
+      r.onsuccess = ()=> resolve((r.result || []).sort((a,b)=> b.time - a.time));
+      r.onerror = ()=> reject(r.error);
+    });
+  }
+  async function histPut(rec){
+    const db = await histDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('files','readwrite'); tx.objectStore('files').put(rec);
+      tx.oncomplete = resolve; tx.onerror = ()=> reject(tx.error);
+    });
+  }
+  async function histDelete(ids){
+    const db = await histDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction('files','readwrite'); const st = tx.objectStore('files');
+      ids.forEach(id => st.delete(id));
+      tx.oncomplete = resolve; tx.onerror = ()=> reject(tx.error);
+    });
+  }
+  async function saveHistory(files){
+    try{
+      const now = Date.now();
+      for(let i=0;i<files.length;i++){
+        const f = files[i];
+        await histPut({ id: now + '-' + i, name: f.name, type: f.type || 'application/pdf', size: f.size, time: now - i, blob: f });
+      }
+      await pruneHistory();
+      await renderHistory();
+    }catch(e){ console.warn('Riwayat tidak bisa disimpan', e); }
+  }
+  async function pruneHistory(){
+    const all = await histAll();
+    const limit = Date.now() - HIST_DAYS*24*3600*1000;
+    const drop = all.filter((r,i)=> i >= HIST_MAX || r.time < limit).map(r=>r.id);
+    if(drop.length) await histDelete(drop);
+  }
+  function fmtSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
+  async function renderHistory(){
+    try{
+      const all = await histAll();
+      histList.innerHTML = '';
+      histBox.classList.toggle('show', all.length > 0);
+      all.forEach(rec=>{
+        const item = document.createElement('div'); item.className = 'hist-item';
+        const nm = document.createElement('p'); nm.className = 'hist-name'; nm.textContent = rec.name;
+        const mt = document.createElement('p'); mt.className = 'hist-meta';
+        mt.textContent = fmtSize(rec.size) + ' · ' + new Date(rec.time).toLocaleString('id-ID');
+        const act = document.createElement('div'); act.className = 'hist-actions';
+        const mk = (label, cls, fn)=>{ const b = document.createElement('button'); b.type='button'; b.textContent = label; if(cls) b.className = cls; b.addEventListener('click', fn); act.appendChild(b); };
+        mk('Kirim WA','h-wa', async ()=>{
+          const file = new File([rec.blob], rec.name, { type: rec.type });
+          if(canShareFiles([file])){
+            try{ await navigator.share({ files:[file], title: rec.name.replace(/\.pdf$/i,'') }); }
+            catch(err){ if(!(err && err.name === 'AbortError')){ triggerDownload(rec.blob, rec.name); } }
+          } else {
+            triggerDownload(rec.blob, rec.name);
+            setTimeout(()=> openWhatsAppApp(normalizeWaNumber(document.getElementById('waNumber').value)), 600);
+          }
+        });
+        mk('Unduh','', ()=> triggerDownload(rec.blob, rec.name));
+        mk('Hapus','h-del', async ()=>{ await histDelete([rec.id]); renderHistory(); });
+        item.append(nm, mt, act); histList.appendChild(item);
+      });
+    }catch(e){ histBox.classList.remove('show'); }
+  }
+  document.getElementById('histClearAll').addEventListener('click', async ()=>{
+    if(!confirm('Hapus semua PDF yang tersimpan sementara?')) return;
+    try{ const all = await histAll(); await histDelete(all.map(r=>r.id)); }catch(e){}
+    renderHistory();
+  });
+  pruneHistory().then(renderHistory).catch(()=>{});
+
   shareSaveBtn.addEventListener('click', ()=>{
     if(lastResult) triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
   });
