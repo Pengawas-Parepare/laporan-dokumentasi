@@ -1137,7 +1137,7 @@
     <p class="share-title">PDF siap dikirim</p>
     <p class="share-file" id="shareFileName"></p>
     <div class="share-num">
-      <label for="waNumber">Nomor WA tujuan (opsional, contoh 0812xxxxxxxx)</label>
+      <label for="waNumber">Nomor WA tujuan (opsional, dipakai di laptop untuk membuka chat langsung)</label>
       <input type="tel" id="waNumber" inputmode="tel" placeholder="08xxxxxxxxxx">
     </div>
     <div class="share-actions">
@@ -1918,36 +1918,31 @@
     shareFileName.textContent = n === 1 ? result.files[0].name : `${n} berkas PDF`;
     shareWaBtn.textContent = 'Kirim WA';
     if(mobile && shareable){
-      shareHint.textContent = 'Isi nomor tujuan lalu tekan Kirim WA untuk membuka chat orang tersebut, atau kosongkan nomor untuk memilih kontak sendiri dan PDF langsung terlampir.';
+      shareHint.textContent = 'Tekan Kirim WA, pilih WhatsApp lalu pilih kontak/grup. File PDF sudah terlampir, tinggal tekan kirim.';
     } else {
       triggerDownload(result.downloadBlob, result.downloadName);
-      shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Isi nomor tujuan lalu tekan Kirim WA untuk membuka chat orang tersebut, kemudian lampirkan PDF-nya.';
+      shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Tekan Kirim WA untuk membuka WhatsApp, lalu lampirkan PDF-nya lewat ikon klip > Dokumen.';
     }
     shareBar.classList.add('show');
   }
   shareWaBtn.addEventListener('click', async ()=>{
     if(!lastResult) return;
-    const num = normalizeWaNumber(document.getElementById('waNumber').value);
-    if(num){
-      // Buka chat langsung ke nomor tujuan. Browser tidak boleh melampirkan berkas otomatis ke nomor tertentu,
-      // jadi PDF disimpan dulu lalu pengguna menekan ikon klip > Dokumen.
-      triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
-      const text = encodeURIComponent('Berikut berkas PDF: ' + lastResult.files[0].name);
-      window.open('https://wa.me/' + num + '?text=' + text, '_blank');
-      shareHint.textContent = 'Chat ke ' + num + ' dibuka. Tekan ikon klip, pilih Dokumen, lalu pilih PDF yang baru terunduh.';
-      return;
-    }
     if(canShareFiles(lastResult.files)){
+      // Kirim berkas PDF-nya langsung (terlampir) lewat menu bagikan WhatsApp.
       try{
         await navigator.share({ files: lastResult.files, title: lastResult.files[0].name.replace(/\.pdf$/i,'') });
       }catch(err){
         if(err && err.name === 'AbortError') return;
         triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
-        alert('Tidak bisa membuka menu kirim, berkas diunduh saja. Silakan lampirkan manual di WhatsApp.');
+        alert('Menu kirim tidak bisa dibuka, PDF diunduh saja. Silakan lampirkan manual di WhatsApp.');
       }
-    } else {
-      window.open('https://wa.me/', '_blank');
+      return;
     }
+    // Perangkat tanpa menu bagikan berkas: buka chat WhatsApp (tanpa teks), PDF dilampirkan manual.
+    const num = normalizeWaNumber(document.getElementById('waNumber').value);
+    triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
+    window.open(num ? 'https://wa.me/' + num : 'https://wa.me/', '_blank');
+    shareHint.textContent = 'WhatsApp dibuka. Tekan ikon klip, pilih Dokumen, lalu pilih PDF yang baru terunduh.';
   });
   shareSaveBtn.addEventListener('click', ()=>{
     if(lastResult) triggerDownload(lastResult.downloadBlob, lastResult.downloadName);
