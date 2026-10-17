@@ -1044,6 +1044,13 @@
     </div>
   </div>
 
+  <div class="title-field">
+    <div class="field-title">
+      <label for="pdfFileName">Nama File PDF (opsional)</label>
+      <input type="text" id="pdfFileName" placeholder="Kosongkan untuk nama otomatis, contoh: Laporan Bakti Sosial">
+    </div>
+  </div>
+
   <div class="cover-style-field">
     <label>Gaya Latar Halaman Judul</label>
     <div class="cover-style-group" id="coverStyleGroup">
@@ -1654,6 +1661,13 @@
     return dt.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  // Nama file PDF buatan sendiri; kalau kosong pakai nama bawaan.
+  function customFileBase(fallback){
+    const el = document.getElementById('pdfFileName');
+    const v = el ? el.value.trim().replace(/\.(pdf|zip)$/i, '') : '';
+    return v ? sanitizeFileName(v) : fallback;
+  }
+
   function sanitizeFileName(name){
     return name.trim().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'gabungan';
   }
@@ -1854,7 +1868,7 @@
         }
         const finalBytes = await finalDoc.save();
         const blob = new Blob([finalBytes], { type: 'application/pdf' });
-        const outName = `${sanitizeFileName(activityTitle || 'gabungan')}.pdf`;
+        const outName = `${customFileBase(sanitizeFileName(activityTitle || 'gabungan'))}.pdf`;
         deliverResult({ files:[new File([blob], outName, { type:'application/pdf' })], downloadBlob: blob, downloadName: outName });
       } else {
         const zip = new JSZip();
@@ -1878,7 +1892,7 @@
         }
         progressFill.style.width = '100%';
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        deliverResult({ files: pdfFiles, downloadBlob: zipBlob, downloadName: 'berkas-pdf.zip' });
+        deliverResult({ files: pdfFiles, downloadBlob: zipBlob, downloadName: `${customFileBase('berkas-pdf')}.zip` });
       }
       stamp.classList.add('show');
     } catch(err){
@@ -1990,6 +2004,15 @@
         mt.textContent = fmtSize(rec.size) + ' · ' + new Date(rec.time).toLocaleString('id-ID');
         const act = document.createElement('div'); act.className = 'hist-actions';
         const mk = (label, cls, fn)=>{ const b = document.createElement('button'); b.type='button'; b.textContent = label; if(cls) b.className = cls; b.addEventListener('click', fn); act.appendChild(b); };
+        mk('Ganti nama','', async ()=>{
+          const cur = rec.name.replace(/\.pdf$/i,'');
+          const v = prompt('Nama file baru:', cur);
+          if(v === null) return;
+          const clean = sanitizeFileName(v.replace(/\.pdf$/i,''));
+          if(!clean) return;
+          try{ await histPut({ ...rec, name: clean + '.pdf' }); }catch(e){}
+          renderHistory();
+        });
         mk('Unduh','', ()=> triggerDownload(rec.blob, rec.name));
         mk('Hapus','h-del', async ()=>{ await histDelete([rec.id]); renderHistory(); });
         body.append(nm, mt, act); row.append(body); item.appendChild(row); histList.appendChild(item);
@@ -2034,7 +2057,7 @@
       const finalBytes = await finalDoc.save();
       const blob = new Blob([finalBytes], { type: 'application/pdf' });
       const activityTitle = activityTitleInput.value.trim();
-      const outName = `${sanitizeFileName((activityTitle ? activityTitle + '-' : '') + 'Foto')}.pdf`;
+      const outName = `${customFileBase(sanitizeFileName((activityTitle ? activityTitle + '-' : '') + 'Foto'))}.pdf`;
       deliverResult({ files:[new File([blob], outName, { type:'application/pdf' })], downloadBlob: blob, downloadName: outName });
       stamp.classList.add('show');
     } catch(err){
