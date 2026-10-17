@@ -1134,7 +1134,7 @@
     <p class="share-file" id="shareFileName"></p>
     <div class="share-actions">
       <button type="button" class="btn-wa" id="shareWaBtn">Kirim ke WhatsApp</button>
-      <button type="button" class="btn-save" id="shareSaveBtn">Simpan ke HP</button>
+      <button type="button" class="btn-save" id="shareSaveBtn">Unduh PDF lagi</button>
     </div>
     <p class="share-hint" id="shareHint"></p>
   </div>
@@ -1891,19 +1891,30 @@
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
   }
   // result = { files:[File,...], downloadBlob, downloadName }
+  function isMobileDevice(){
+    if(navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
   function deliverResult(result){
     lastResult = result;
     const shareable = canShareFiles(result.files);
+    const mobile = isMobileDevice();
     const n = result.files.length;
     shareFileName.textContent = n === 1 ? result.files[0].name : `${n} berkas PDF`;
-    if(shareable){
-      // Di HP: tidak diunduh otomatis, tunggu pengguna menekan tombol kirim.
+    if(mobile && shareable){
+      // HP: tidak diunduh otomatis, tunggu pengguna menekan tombol kirim.
       shareWaBtn.textContent = 'Kirim ke WhatsApp';
       shareHint.textContent = 'Tekan tombol hijau, lalu pilih WhatsApp dan kontak/grup tujuan.';
     } else {
+      // Laptop/PC: selalu langsung terunduh ke folder Downloads.
       triggerDownload(result.downloadBlob, result.downloadName);
-      shareWaBtn.textContent = 'Buka WhatsApp';
-      shareHint.textContent = 'Berkas sudah terunduh. Buka WhatsApp, tekan ikon lampiran (klip), pilih Dokumen, lalu pilih PDF dari folder Unduhan/Download.';
+      if(shareable){
+        shareWaBtn.textContent = 'Kirim ke WhatsApp';
+        shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Anda juga bisa langsung mengirimnya lewat tombol hijau.';
+      } else {
+        shareWaBtn.textContent = 'Buka WhatsApp';
+        shareHint.textContent = 'PDF sudah terunduh ke folder Downloads. Buka WhatsApp, tekan ikon lampiran (klip), pilih Dokumen, lalu pilih PDF tersebut.';
+      }
     }
     shareBar.classList.add('show');
   }
