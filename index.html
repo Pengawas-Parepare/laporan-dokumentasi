@@ -2069,6 +2069,11 @@
         mt.textContent = fmtSize(rec.size) + ' · ' + new Date(rec.time).toLocaleString('id-ID');
         const act = document.createElement('div'); act.className = 'hist-actions';
         const mk = (label, cls, fn)=>{ const b = document.createElement('button'); b.type='button'; b.textContent = label; if(cls) b.className = cls; b.addEventListener('click', fn); act.appendChild(b); };
+        mk('Lihat','', ()=>{
+          const url = URL.createObjectURL(rec.blob);
+          window.open(url, '_blank');
+          setTimeout(()=> URL.revokeObjectURL(url), 60000);
+        });
         mk('Ganti nama','', async ()=>{
           const cur = rec.name.replace(/\.pdf$/i,'');
           const v = prompt('Nama file baru:', cur);
@@ -2135,14 +2140,31 @@
     }
   }
 
+  let previewObjUrl = null;
   async function openPreview(entry){
     previewTitle.textContent = entry.name;
     previewContent.innerHTML = '<p class="preview-loading">Memuat pratinjau&hellip;</p>';
     previewModal.classList.add('show');
     try{
       if(entry.kind === 'image'){
-        const dataUrl = await readAsDataURL(entry.file);
-        previewContent.innerHTML = `<img src="${dataUrl}" alt="${escapeHtml(entry.name)}">`;
+        syncNotesFromInputs();
+        if(previewObjUrl){ URL.revokeObjectURL(previewObjUrl); previewObjUrl = null; }
+        previewObjUrl = URL.createObjectURL(entry.file);
+        const note = (entry.note || '').trim();
+        const im = new Image();
+        im.alt = entry.name;
+        im.onload = ()=>{
+          previewContent.innerHTML = '';
+          previewContent.appendChild(im);
+          const cap = document.createElement('p');
+          cap.style.cssText = 'text-align:center; margin:12px 0 0; font-size:14px; line-height:1.5; ' + (note ? 'color:#1e1e1e;' : 'color:#8a8a8a; font-style:italic;');
+          cap.textContent = note || 'Belum ada keterangan untuk foto ini.';
+          previewContent.appendChild(cap);
+        };
+        im.onerror = ()=>{
+          previewContent.innerHTML = '<p class="preview-loading">Foto tidak bisa ditampilkan oleh browser ini (format tidak didukung, misalnya HEIC). Ubah ke JPG lalu coba lagi.</p>';
+        };
+        im.src = previewObjUrl;
       } else if(entry.kind === 'docx'){
         const buf = await readAsArrayBuffer(entry.file);
         const result = await mammoth.convertToHtml({ arrayBuffer: buf });
@@ -2166,6 +2188,7 @@
   function closePreview(){
     previewModal.classList.remove('show');
     previewContent.innerHTML = '';
+    if(previewObjUrl){ URL.revokeObjectURL(previewObjUrl); previewObjUrl = null; }
   }
 
   previewClose.addEventListener('click', closePreview);
