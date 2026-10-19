@@ -1169,6 +1169,7 @@
     <div class="rn-box" role="dialog" aria-modal="true">
       <h3>Beri nama file</h3>
       <p>PDF sudah jadi. Ubah namanya dulu, lalu tekan Unduh.</p>
+      <p id="rnInfo" style="font-weight:600"></p>
       <div class="rn-field"><input type="text" id="rnInput" autocomplete="off"><span class="rn-ext" id="rnExt">.pdf</span></div>
       <div class="rn-actions">
         <button type="button" id="rnCancel">Nanti saja</button>
@@ -1376,6 +1377,15 @@
     });
   }
 
+  // Ambil ulang isi kolom keterangan langsung dari layar, supaya pasti ikut tercetak.
+  function syncNotesFromInputs(){
+    reviewList.querySelectorAll('.file-note-input').forEach(inp=>{
+      const id = Number(inp.getAttribute('data-id'));
+      const entry = files.find(f=>f.id === id);
+      if(entry) entry.note = inp.value;
+    });
+  }
+
   function renderReviewList(){
     const validFiles = files.filter(f => !f.error);
     if(validFiles.length === 0){
@@ -1395,11 +1405,7 @@
       reviewList.appendChild(item);
     });
     reviewList.querySelectorAll('.file-note-input').forEach(inp=>{
-      inp.addEventListener('input', (e)=>{
-        const id = Number(e.currentTarget.getAttribute('data-id'));
-        const entry = files.find(f=>f.id === id);
-        if(entry) entry.note = e.currentTarget.value;
-      });
+      ['input','change','blur'].forEach(evt=> inp.addEventListener(evt, syncNotesFromInputs));
     });
     reviewList.querySelectorAll('.file-view-btn').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
@@ -1839,6 +1845,7 @@
   }
 
   async function convertAll(){
+    syncNotesFromInputs();
     const validFiles = files.filter(f => !f.error);
     if(validFiles.length === 0) return;
 
@@ -1949,6 +1956,9 @@
     const rnInput = document.getElementById('rnInput');
     const ext = /\.zip$/i.test(result.downloadName) ? '.zip' : '.pdf';
     document.getElementById('rnExt').textContent = ext;
+    const imgEntries = files.filter(f => !f.error && f.kind === 'image');
+    const withNote = imgEntries.filter(f => f.note && f.note.trim()).length;
+    document.getElementById('rnInfo').textContent = imgEntries.length ? `Keterangan foto yang tercetak: ${withNote} dari ${imgEntries.length} foto.` : '';
     rnInput.value = result.downloadName.replace(/\.(pdf|zip)$/i, '');
     rnBack.classList.add('show');
     setTimeout(()=>{ rnInput.focus(); rnInput.select(); }, 50);
@@ -2087,6 +2097,7 @@
   // mengabaikan berkas Word/Excel/PDF lain yang mungkin ada di antrean, serta
   // tanpa halaman sampul/tanda tangan — murni kumpulan foto saja.
   async function convertImagesOnly(){
+    syncNotesFromInputs();
     const validImages = files.filter(f => !f.error && f.kind === 'image');
     if(validImages.length === 0) return;
 
