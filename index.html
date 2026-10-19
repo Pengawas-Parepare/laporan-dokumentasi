@@ -1550,6 +1550,24 @@
     });
   }
 
+  // Keterangan foto: huruf lebih besar & gelap, ruang dihitung dari jumlah baris supaya tidak terpotong.
+  function captionLayout(doc, note, maxW, fontSize){
+    if(!note) return { lines: [], space: 0, lh: 0 };
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    const lines = doc.splitTextToSize(note, maxW);
+    const lh = fontSize * 0.3528 * 1.3;
+    return { lines, space: lines.length * lh + 4, lh };
+  }
+  function drawCaption(doc, cap, centerX, topY, fontSize){
+    if(!cap.lines.length) return;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    doc.setTextColor(30, 30, 30);
+    cap.lines.forEach((ln, i)=> doc.text(ln, centerX, topY + (i + 1) * cap.lh, { align: 'center' }));
+    doc.setTextColor(0, 0, 0);
+  }
+
   async function addImageToDoc(doc, file, isFirstOnDoc, note){
     const dataUrl = await readAsDataURL(file);
     const img = await loadImage(dataUrl);
@@ -1557,9 +1575,10 @@
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 12;
-    const captionSpace = note ? 10 : 0;
     const maxW = pageWidth - margin*2;
-    const maxH = pageHeight - margin*2 - captionSpace;
+    const capFont = 11;
+    const cap = captionLayout(doc, note, maxW, capFont);
+    const maxH = pageHeight - margin*2 - cap.space;
     let w = img.width, h = img.height;
     const scaledRatio = Math.min(maxW / w, maxH / h);
     w = w * scaledRatio;
@@ -1569,14 +1588,7 @@
     let format = 'JPEG';
     if(dataUrl.startsWith('data:image/png')) format = 'PNG';
     doc.addImage(dataUrl, format, x, y, w, h);
-    if(note){
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(9);
-      doc.setTextColor(90, 90, 90);
-      doc.text(note, pageWidth / 2, y + h + 7, { align: 'center', maxWidth: maxW });
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'normal');
-    }
+    drawCaption(doc, cap, pageWidth / 2, y + h + 1.5, capFont);
   }
 
   async function addImageGroupToDoc(doc, group, isFirstOnDoc){
@@ -1592,9 +1604,10 @@
       const dataUrl = await readAsDataURL(entry.file);
       const img = await loadImage(dataUrl);
       const cellTop = margin + idx*(rowHeight + gap);
-      const captionSpace = entry.note ? 8 : 0;
       const maxW = pageWidth - margin*2;
-      const maxH = rowHeight - captionSpace;
+      const capFont = rows === 1 ? 11 : (rows === 2 ? 10 : 9);
+      const cap = captionLayout(doc, entry.note, maxW, capFont);
+      const maxH = rowHeight - cap.space;
       let w = img.width, h = img.height;
       const scaledRatio = Math.min(maxW / w, maxH / h);
       w = w * scaledRatio;
@@ -1604,14 +1617,7 @@
       let format = 'JPEG';
       if(dataUrl.startsWith('data:image/png')) format = 'PNG';
       doc.addImage(dataUrl, format, x, y, w, h);
-      if(entry.note){
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(8);
-        doc.setTextColor(90, 90, 90);
-        doc.text(entry.note, pageWidth / 2, y + h + 6, { align: 'center', maxWidth: maxW });
-        doc.setTextColor(0, 0, 0);
-        doc.setFont('helvetica', 'normal');
-      }
+      drawCaption(doc, cap, pageWidth / 2, y + h + 1.5, capFont);
     }
   }
 
